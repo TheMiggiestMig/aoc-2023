@@ -2,84 +2,69 @@ with open('day') as f: txt = f.read()
 
 lines = txt.splitlines()
 
-map_chain = ['seed',
-            'soil',
-            'fertilizer',
-            'water',
-            'light',
-            'temperature',
-            'humidity',
-            'location']
-            
-# Parse the seeds
 seeds = list(map(lambda x: int(x), lines[0].split('seeds: ')[1].split(' ')))
-
+categories = [
+    'seed',
+    'soil',
+    'fertilizer',
+    'water',
+    'light',
+    'temperature',
+    'humidity',
+    'location'
+    ]
+    
 # Parse the mappings
 mappings = {}
-mapped_seeds = {}
-category = ''
 
+mapping = {}
+mapping_type = ''
 for line in lines[1:]:
     
     # Ignore blank lines
-    if not line:
-        continue
+    if not line: continue
     
-    # If it doesn't start with a number then it's probably a category. Sort the previous category (if it exists), and start a new one
+    # If it doesn't start with a number, it's probably a new category
     if not line[0].isdigit():
-        if category:
-            sorted_category = {}
-            for key, value in sorted(mappings[category].items()):
-                sorted_category[key] = value
-                
-            mappings[category] = sorted_category
-        
-        # Start a new category
-        category = line.split(' map:')[0]
-        mappings[category] = {}
+        mapping_type = line.split(' map:')[0]
+        mappings[mapping_type] = {}
         continue
     
-    # If we get this far, it's probably a mapping value
-    dest, start, range_size = line.split(' ')
-    mappings[category][int(start)] = {'dest':int(dest), 'range':int(range_size)}
+    # Add the items
+    dest, source, range_size = line.split(' ')
+    mappings[mapping_type][int(source)] = {'dest': int(dest), 'range': int(range_size)}
 
+for key, value in mappings.items():
+    mappings[key] = dict(sorted(value.items()))
+
+# Parse the seeds
 def map_seed(seed):
-    seed_map = {}
+    mapped_seed = {}
+    source = categories[0]
+    mapped_seed[source] = seed
     
-    source = map_chain[0]
-    seed_map[source] = seed
-    
-    for dest in map_chain[1:]:
-        category = f"{source}-to-{dest}"
-        source_start = None
+    # Follow the mappings
+    for dest in categories[1:]:
+        mapping_type = f"{source}-to-{dest}"
         
-        print(f"Mapping {category} using {source} ({seed_map[source]})...")
-        
-        # Find the closest range
-        for i, value in list(mappings[category].items()):
-            if i > seed_map[source]:
+        source_range_start = None
+        for source_start, item in mappings[mapping_type].items():
+            if source_start > mapped_seed[source]:
                 break
-            source_start = (i, value)
+            source_range_start = (source_start, item)
         
-        seed_map[dest] = seed_map[source]
-        if source_start:
-            print(f"\tClosest {category} source found ({source_start[0]})")
-            source_start = source_start[0]
-            
-            # Check if the value falls out of range
-            diff = seed_map[source] - source_start
-            print(diff, mappings[category][source_start]['range'])
-            if diff < mappings[category][source_start]['range']:
-                seed_map[dest] = mappings[category][source_start]['dest'] + diff
-        else:
-            print(f"\t{category} source not found!")
-            
+        mapped_seed[dest] = mapped_seed[source]
+        
+        if source_range_start:
+            diff = mapped_seed[source] - source_range_start[0]
+            if diff < source_range_start[1]['range']:
+                mapped_seed[dest] = source_range_start[1]['dest'] + diff
+                
         source = dest
         
-    return seed_map
+    return mapped_seed
 
-for i in range(len(seeds)):
-    seeds[i] = map_seed(seeds[i])
-    
-[print(seed) for seed in list(sorted(seeds, key=lambda x: x['location']))]
+seeds = list(map(lambda x: map_seed(x), seeds))
 
+# Part 1
+print(list(sorted(seeds, key=lambda x: x['location']))[0]['location'])
