@@ -33,27 +33,26 @@ pipe_bit_mask = {
 }
 
 
-# Helper functions
+# Useful helper function.
+# Reverses the direction (E <-> W or N <-> S)
 def reverse(direction_bit):
     return direction_bit ^ (pipe_bit_mask['|'] if direction_bit & pipe_bit_mask['|'] else pipe_bit_mask['-'])
 
+
 ################################################
 # Find the starting position
-def find_start(map_grid):
-    for y, row in enumerate(map_grid):
-        for x, value in enumerate(row):
-            if value == 'S':
-                return (x, y)
+start_coord_x, start_coord_y = (0,0)
 
+for y, row in enumerate(map_grid):
+    if row.find('S') + 1:
+        start_coord_x, start_coord_y =  (row.index('S'), y)
 
-start_coord_x, start_coord_y = find_start(map_grid)
 
 ###################################################
-# Find one of the first joining coords and the direction to take for it.
-start_direction = 0
-end_direction = 0
+# Find (one of) the first joining coords and the direction to take for it.
 enter_direction = 0
 exit_direction = 0
+
 current_coord_x, current_coord_y = (0, 0)
 
 for direction_bit, (offset_x, offset_y) in direction_bit_to_offset.items():
@@ -70,6 +69,9 @@ for direction_bit, (offset_x, offset_y) in direction_bit_to_offset.items():
     if pipe & enter_direction:
         current_coord_x, current_coord_y = (start_coord_x + offset_x, start_coord_y + offset_y)
         break
+
+start_direction = reverse(enter_direction)
+end_direction = 0
 
 ######################################################
 # Part 1
@@ -125,10 +127,11 @@ while current_pipe != 'S':
     
 print(steps//2) # The farthest part in the pipe loop is just half the number of pipes.
 
+
 ########################################
 # Part 2 (wtf)
 # Set the 'S' coord details since we now know how it starts and ends
-path_grid[start_coord_y][start_coord_x] = (reverse(end_direction), reverse(start_direction))
+path_grid[start_coord_y][start_coord_x] = (reverse(end_direction), start_direction)
 
 # Scan across each line and check if we are inside the zone or out.
 inner_count = 0
