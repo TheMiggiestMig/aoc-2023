@@ -28,12 +28,6 @@ pipe_bit_mask = {
 
 
 # Helper functions
-def left_normal(direction):
-    return direction << 1 & 0xf or 1
-
-def right_normal(direction):
-    return direction >> 1 or 0b1000
-
 def reverse(direction):
     return direction ^ (0b1010 if direction & 0b1010 else 0b0101)
 
@@ -48,6 +42,8 @@ def find_start(map_grid):
 start_coords = find_start(map_grid)
 
 # Find one of the starting directions.
+start_direction = 0
+end_direction = 0
 enter_direction = 0
 exit_direction = 0
 current_coord = (0, 0)
@@ -74,33 +70,34 @@ for direction_mask, (offset_x, offset_y) in direction_bit_mask.items():
 steps = 1
 current_pipe = map_grid[current_coord[1]][current_coord[0]]
 
-left_turns = 0
-right_turns = 0
+# Track the direction we're turning the most
+# to determine if the loop is clockwise or not.
+# '-' = left, '+' = right.
+turns = 0   
 
-path_coords = deque([current_coord])   # Track the coords that are part of our path for Part 2
-path_directions = deque([enter_direction])
+# Map out the connected pipes for part 2.
 path_grid = {
     current_coord[0]:{
         current_coord[1]:(enter_direction, exit_direction)
     }
 }
 
+# Follow the pipes and map them until we come across the start 'S'.
 while current_pipe != 'S':
+    # Determine the exit direction.
+    # Do this by flipping the bit (turning off) the direction we came from.
+    # Since the pipes only have 2 active bits (connections),
+    # that will leave us with the direction we need to go.
     pipe_mask = pipe_bit_mask[current_pipe]
     exit_direction = pipe_mask ^ enter_direction
     
-    # Check if we're turning and add to the counters.
+    # Check if we're turning and add / subtract from the counter.
     if (pipe_mask ^ 0b1010) and (pipe_mask ^ 0b0101):
-        if left_normal(reverse(enter_direction)) & (pipe_mask ^ enter_direction):
-            left_turns += 1
+        left_normal = reverse(enter_direction) << 1 & 0xf or 1
+        if left_normal & (pipe_mask ^ enter_direction):
+            turns -= 1
         else:
-            right_turns += 1
-    
-    # Move us to the next pipe.
-    # Do this by flipping the bit (turning off) the direction we came from.
-    # Since the pipes only have 2 active bits (connections), that will leave us with the direction
-    #   we need to go.
-    move_coord = direction_bit_mask[exit_direction]
+            turns += 1
     
     # Store this info in our grid for part 2.
     if not path_grid.get(current_coord[1]):
@@ -108,32 +105,36 @@ while current_pipe != 'S':
     
     path_grid[current_coord[1]][current_coord[0]] = (reverse(enter_direction), exit_direction)
     
-    # Flip the direction, since that's now where we came from.
+    # Move to the next (connected pipe).
     enter_direction = exit_direction ^ 0b1010 if exit_direction & 0b1010 else exit_direction ^ 0b0101
+    offset_x, offset_y = direction_bit_mask[exit_direction]
     
-    current_coord = (current_coord[0] + move_coord[0], current_coord[1] + move_coord[1])
+    current_coord = (current_coord[0] + offset_x, current_coord[1] + offset_y)
     current_pipe = map_grid[current_coord[1]][current_coord[0]]
-    path_coords.append(current_coord)
-    path_directions.append(enter_direction)
+    
+    end_direction = enter_direction
     
     steps += 1
 
 # Part 1
-print(steps//2)
+print(steps//2) # The farthest part in the pipe loop is just half the number of pipes.
 
 ########################################
 # Part 2 (wtf)
-# Set the 'S' coord details since we now know where it starts and ends
-
-path_grid[start_coords[1]][start_coords[0]] = (reverse(path_directions[-1]), reverse(path_directions[0]))
+# Set the 'S' coord details since we now know how it starts and ends
+path_grid[start_coords[1]][start_coords[0]] = (reverse(end_direction), reverse(start_direction))
 
 # Scan across each line and check if we are inside the zone or out.
 inner_count = 0
 for y, line in path_grid.items():
     min_x = min(line.keys())
     max_x = max(line.keys())
-    inner_flag = False
-    clockwise = 0b1000 if right_turns > left_turns else 0b0010
+    inner_flag = False  # Only count coords if we're inside the loop.
+    
+    # If we're going clockwise, moving North (0b1000) puts us inside the loop,
+    # and Moving South puts us back out of it.
+    # Counter-clockwise is the opposite.
+    clockwise = 0b1000 if turns > 0 else 0b0010
     
     for x in range(min_x, max_x + 1):
         if line.get(x):
@@ -142,7 +143,8 @@ for y, line in path_grid.items():
                 inner_flag = True
             elif direction & (clockwise ^ 0b1010):
                 inner_flag = False
-        elif inner_flag:
+        
+        if x not in line.keys() and inner_flag:
             inner_count += 1
 
 print(inner_count)
