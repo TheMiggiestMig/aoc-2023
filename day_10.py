@@ -142,8 +142,7 @@ for y, line in path_grid.items():
                 inner_flag = True
             elif direction & (clockwise ^ 0b1010):
                 inner_flag = False
-        
-        if x not in line.keys() and inner_flag:
+        elif inner_flag:
             inner_count += 1
 
 print(inner_count)
