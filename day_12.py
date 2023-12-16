@@ -1,49 +1,40 @@
-import re
-from collections import deque
-from itertools import combinations
+import math
+from functools import lru_cache
 
-# Used [this](https://towardsdatascience.com/solving-nonograms-with-120-lines-of-code-a7c6e0f627e4) as a reference.
+lines = [line.strip() for line in open("day").read().splitlines()]
 
-with open('day') as f: txt = f.read()
-
-lines = txt.splitlines()
-
-def number_map_to_arrangement(numbers, positions, length):
-    cursor_position = 0
-    pairings = list(zip(positions, numbers))
-    arrangement = ''
-    
-    for position, value in pairings:
-        arrangement += f"{'.'*(position - cursor_position)}{'#' * value}"
-        cursor_position = position
-    
-    arrangement = arrangement.ljust(length, '.')
-    
-    return arrangement
-
-total_combinations = 0
-
+rows = []
 for line in lines:
     arrangement, numbers = line.split(' ')
-    numbers = [int(number) for number in numbers.split(',')]
-    total_space = len(arrangement)
-    required_space = sum(numbers) + len(numbers) - 1
-    extra_space = len(arrangement) - required_space
+    rows.append((arrangement, numbers))
+
+
+@lru_cache(maxsize=None)
+def scan_line(arrangement, numbers):
+    if not len(numbers):
+        if arrangement.find('#')+1:
+            return 0
+        else:
+            return 1
+    if arrangement[0] == '#': return 0
+    numbers = list([int(number) for number in numbers.split(',')])
+    number = numbers[0]
+    next_numbers = numbers[1:]
+    space = len(arrangement) - (sum(numbers) + len(next_numbers))
     
-    # determine all combinations of possible placements
-    possibilities = list(combinations(range(len(numbers) + extra_space), len(numbers)))
-    for test_case in possibilities:
-        test_arrangement = number_map_to_arrangement(numbers, test_case, total_space)
-        valid = 1
+    valid = 0
+    
+    for sp in range(space):
+        test_str = (sp+1)*'.'+number*'#'
         
-        for index, char in enumerate(arrangement):
-            if char == '?': continue
-            if char != test_arrangement[index]:
-                valid = 0
-                break
-        total_combinations += valid
+        test = all([a in [t,'?'] for a, t in zip(arrangement[:number+sp+1], test_str)])
+        if test:
+            valid += scan_line(arrangement[number+sp+1:], ','.join([str(num) for num in next_numbers]))
+    return valid
 
-# Part 1
-print(total_combinations)
+arrangement, numbers = rows[4]
 
-# Part 2 (This isn't gonna work for part 2)
+
+print(sum([scan_line('.'+arrangement, numbers) for arrangement, numbers in rows]))
+
+print(sum([scan_line('.'+'?'.join([arrangement]*5), ','.join([numbers]*5)) for arrangement, numbers in rows]))
