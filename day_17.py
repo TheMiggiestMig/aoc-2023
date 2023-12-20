@@ -2,98 +2,104 @@ from heapq import heappush, heappop
 from collections import deque
 import time
 
-lines = open("test").read().strip().splitlines()
+lines = open("day").read().strip().splitlines()
 
-nodes = []
+map_grid = {(x,y):int(value) for y, line in enumerate(lines) for x, value in enumerate(line)}
 
 
-def heuristic(node_a, node_b):
-    return (node_b[0] - node_a[0])**2 + (node_b[1] - node_a[1])**2
-
-def cost(map_grid, node):
-    return int(map_grid[node[1]][node[0]])
-
-def a_star(map_grid, start_node, end_node):
-    open_nodes = []     # Nodes to be investigated.
-    heappush(open_nodes, (0, start_node))
+def search(map_grid, start_node, end_node, min_steps, max_steps):
+    open_nodes = []
+    heappush(open_nodes, (0, *start_node, 0, 0, 0))
     
-    g_score = {start_node:0}    # Current best score to reach node from the start
-    f_score = {start_node:heuristic(start_node, end_node)}  # Current best guess score to reach end from start via this node
-    
-    mapped_nodes = {}       # The path to each node via its parent. Also keeps track of the direction taken from the node.
-    
-    map_width = len(map_grid[0]) - 1
-    map_height = len(map_grid) - 1
-    
-    counter = 0
+    visited_nodes = set()
+    mapped_nodes = {}
     
     while open_nodes:
-        current_node = heappop(open_nodes)[1]
+        node_heat, node_x, node_y, move_x, move_y, node_steps = heappop(open_nodes)
+        current_state = (node_x, node_y, move_x, move_y)
         
-        # If we reached the end, give us the path taken.
-        if current_node == end_node:
-            full_path = deque([(current_node, 0, cost(map_grid, current_node))])
-            
-            while current_node in mapped_nodes and current_node != start_node:
-                current_node, direction, node_cost = mapped_nodes[current_node]
-                full_path.appendleft((current_node, direction, node_cost))
+        # We've reached the end.
+        # Trace the path (since I like looking at things).
+        if (node_x, node_y) == end_node:
+            current_state = (node_x, node_y, move_x, move_y, node_steps)
+            path = deque()
+            [path.appendleft((node_x - (i * move_x), node_y - (i * move_y), move_x, move_y)) for i in range(node_steps)]
+            while current_state[:2] != start_node:
+                current_state = mapped_nodes[current_state][:-1]
                 
-            return full_path
+                node_x, node_y, move_x, move_y, node_steps = current_state
+                [path.appendleft((node_x - (i * move_x), node_y - (i * move_y), move_x, move_y)) for i in range(node_steps)]
+            return path, node_heat
         
-        # Check all our neighboring squares
-        for neighbor, direction in [
-            ((0, -1), 0b1000),  # North
-            ((1, 0), 0b0100),  # East
-            ((0, 1), 0b0010),  # South
-            ((-1, 0), 0b0001),  # West
-            ]:
+        if current_state in visited_nodes:
+            continue
+        
+        visited_nodes.add(current_state)
+        
+        for delta_x, delta_y in {
+            (0, -1),
+            (1, 0),
+            (0, 1),
+            (-1, 0)} - {
+                (move_x, move_y),
+                (-move_x, -move_y)
+            }:
+            prev_x, prev_y, current_heat = node_x, node_y, node_heat
+            old_state = (prev_x, prev_y, move_x, move_y)
+            
+            for steps in range(max_steps):
+                new_x, new_y = prev_x + delta_x, prev_y + delta_y
+                new_state = (new_x, new_y, delta_x, delta_y)
                 
-            neighbor_node = (current_node[0] + neighbor[0], current_node[1] + neighbor[1])
-            
-            # Make sure the neighbor is in the map_grid bounds.
-            # Otherwise skip this one.
-            if neighbor_node[0] < 0 or neighbor_node[0] > map_width or neighbor_node[1] < 0 or neighbor_node[1] > map_height:
-                continue
-            
-            # Check if we've travelled 3 times in this direction already.
-            # If we have, skip this one.
-            parent_node, parent_node_direction = mapped_nodes.get(current_node) or 0, 0
-            grandparent_node, grandparent_node_direction = mapped_nodes.get(parent_node) or 0, 0
-            greatgrandparent_node, greatgrandparent_node_direction = mapped_nodes.get(grandparent_node) or 0, 0
-            if parent_node_direction & grandparent_node_direction & greatgrandparent_node_direction & direction:
-                continue
-            
-            local_cost = cost(map_grid, neighbor_node)
-            local_g_score = g_score[current_node] + local_cost
-            if not g_score.get(neighbor_node) or local_g_score < g_score[neighbor_node]:
-                mapped_nodes[neighbor_node] = (current_node, direction, cost(map_grid, neighbor_node))
-                g_score[neighbor_node] = local_g_score
-                f_score[neighbor_node] = local_g_score + heuristic(neighbor_node, end_node)
-                if neighbor_node not in open_nodes:
-                    heappush(open_nodes, (f_score[neighbor_node], neighbor_node))
-    
+                if map_grid.get((new_x, new_y)):
+                    current_heat += map_grid[(new_x, new_y)]
+                    
+                    if steps + 1 > min_steps - 1:
+                        heappush(open_nodes, (current_heat, *new_state, steps + 1))
+                        if not mapped_nodes.get((*new_state, steps + 1)) or mapped_nodes[(*new_state, steps + 1)][-1] > current_heat:
+                            mapped_nodes[(*new_state, steps + 1)] = (*current_state, node_steps, current_heat)
+                        
+                else:
+                    break
+                
+                prev_x, prev_y = new_x, new_y
+                old_state = new_state
+                
     return None
 
-path = a_star(lines, (0,0), (len(lines[0]) - 1,len(lines) - 1))
+# Part 1
+path, heat = search(map_grid, min(map_grid), max(map_grid), 1, 3)
+print(heat)
 
-map_grid = [[c for c in line] for line in lines]
+# Part 2
+path, heat = search(map_grid, min(map_grid), max(map_grid), 4, 10)
+print(heat)
 
-directions = {
-    0b1000: '^',
-    0b0100: '>',
-    0b0010: 'v',
-    0b0001: '<'
-}
-for node, direction, cost in path:
-    if direction:
-        map_grid[node[1]][node[0]] = directions[direction]
+# Pretty stuff... not needed for the challenge, just my peace of mind.
+def render(raw_data, path):
+    direction = {
+        (0, -1): '^',
+        (1, 0): '>',
+        (0, 1): 'v',
+        (-1, 0): '<'
+    }
 
-map_grid = [''.join(line) for line in map_grid]
+    mapped_grid = [[c for c in line] for line in raw_data]
+    for x, y, dx, dy in path:
+        if (dx, dy) != (0, 0):
+            mapped_grid[y][x] = direction[(dx, dy)]
 
-while True:
-    print('\n\n\n\n\n\n\n\n')
-    [print(line) for line in lines]
-    time.sleep(0.5)
-    print('\n\n\n\n\n\n\n\n')
-    [print(line) for line in map_grid]
-    time.sleep(0.5)
+    mapped_grid = [''.join(line) for line in mapped_grid]
+
+    while True:
+        print('\n'*12)
+        [print(line) for line in raw_data]
+        print('\n','Heat: ',heat)
+        time.sleep(0.25)
+        
+        print('\n'*12)
+        [print(mapped_line) for mapped_line in mapped_grid]
+        print('\n','Heat: ',heat)
+        time.sleep(0.25)
+    
+# render(lines, path)
